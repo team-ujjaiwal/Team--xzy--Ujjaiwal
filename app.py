@@ -8,7 +8,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from cachetools import TTLCache
 from typing import Tuple
-from CSPlayerPersonalShowInfo_pb2 import Info
+from CSPlayerPersonalShowInfo_pb2 import Info  # Correct message type
 from FreeFire_pb2 import LoginReq, LoginRes
 from google.protobuf import json_format, message
 from google.protobuf.message import Message
@@ -89,7 +89,7 @@ async def create_jwt(region: str):
     }
     async with httpx.AsyncClient() as client:
         resp = await client.post(url, data=payload, headers=headers)
-        msg = json.loads(json_format.MessageToJson(decode_protobuf(resp.content, LoginRes)))
+        msg = json.loads(json_format.MessageToJson(decode_protobuf(resp.content, LoginRes())))
         cached_tokens[region] = {
             'token': f"Bearer {msg.get('token','0')}",
             'region': msg.get('lockRegion','0'),
@@ -150,7 +150,14 @@ async def GetAccountInformation(uid, unk, region, endpoint):
     }
     async with httpx.AsyncClient() as client:
         resp = await client.post(server+endpoint, data=data_enc, headers=headers)
-        return json.loads(json_format.MessageToJson(decode_protobuf(resp.content, AccountPersonalShowInfo)))
+        
+        # Try to parse the response
+        try:
+            response_data = decode_protobuf(resp.content, Info())
+            return json.loads(json_format.MessageToJson(response_data))
+        except Exception as e:
+            # If parsing fails, return raw response for debugging
+            return {"error": f"Failed to parse response: {str(e)}", "raw_response": resp.content.hex()}
 
 # === Caching Decorator ===
 def cached_endpoint(ttl=300):
