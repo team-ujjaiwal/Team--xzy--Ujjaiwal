@@ -8,7 +8,8 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from cachetools import TTLCache
 from typing import Tuple
-from proto import FreeFire_pb2, main_pb2, AccountPersonalShow_pb2
+from CSPlayerPersonalShowInfo_pb2 import AccountPersonalShowInfo, GetPlayerPersonalShow
+from FreeFire_pb2 import LoginReq, LoginRes
 from google.protobuf import json_format, message
 from google.protobuf.message import Message
 from Crypto.Cipher import AES
@@ -68,7 +69,7 @@ async def create_jwt(region: str):
     account = get_account_credentials(region)
     token_val, open_id = await get_access_token(account)
     body = json.dumps({"open_id": open_id, "open_id_type": "4", "login_token": token_val, "orign_platform_type": "4"})
-    proto_bytes = await json_to_proto(body, FreeFire_pb2.LoginReq())
+    proto_bytes = await json_to_proto(body, LoginReq())
     payload = aes_cbc_encrypt(MAIN_KEY, MAIN_IV, proto_bytes)
     url = "https://loginbp.ggblueshark.com/MajorLogin"
     headers = {'User-Agent': USERAGENT, 'Connection': "Keep-Alive", 'Accept-Encoding': "gzip",
@@ -76,7 +77,7 @@ async def create_jwt(region: str):
                'X-GA': "v1 1", 'ReleaseVersion': RELEASEVERSION}
     async with httpx.AsyncClient() as client:
         resp = await client.post(url, data=payload, headers=headers)
-        msg = json.loads(json_format.MessageToJson(decode_protobuf(resp.content, FreeFire_pb2.LoginRes)))
+        msg = json.loads(json_format.MessageToJson(decode_protobuf(resp.content, LoginRes)))
         cached_tokens[region] = {
             'token': f"Bearer {msg.get('token','0')}",
             'region': msg.get('lockRegion','0'),
@@ -105,7 +106,7 @@ async def GetAccountInformation(uid, unk, region, endpoint):
     region = region.upper()
     if region not in SUPPORTED_REGIONS:
         raise ValueError(f"Unsupported region: {region}")
-    payload = await json_to_proto(json.dumps({'a': uid, 'b': unk}), main_pb2.GetPlayerPersonalShow())
+    payload = await json_to_proto(json.dumps({'a': uid, 'b': unk}), GetPlayerPersonalShow())
     data_enc = aes_cbc_encrypt(MAIN_KEY, MAIN_IV, payload)
     token, lock, server = await get_token_info(region)
     headers = {'User-Agent': USERAGENT, 'Connection': "Keep-Alive", 'Accept-Encoding': "gzip",
@@ -114,7 +115,7 @@ async def GetAccountInformation(uid, unk, region, endpoint):
                'ReleaseVersion': RELEASEVERSION}
     async with httpx.AsyncClient() as client:
         resp = await client.post(server+endpoint, data=data_enc, headers=headers)
-        return json.loads(json_format.MessageToJson(decode_protobuf(resp.content, AccountPersonalShow_pb2.AccountPersonalShowInfo)))
+        return json.loads(json_format.MessageToJson(decode_protobuf(resp.content, AccountPersonalShowInfo)))
 
 # === Caching Decorator ===
 def cached_endpoint(ttl=300):
