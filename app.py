@@ -89,7 +89,10 @@ async def create_jwt(region: str):
     }
     async with httpx.AsyncClient() as client:
         resp = await client.post(url, data=payload, headers=headers)
-        msg = json.loads(json_format.MessageToJson(decode_protobuf(resp.content, LoginRes())))
+        # Fix: Use LoginRes directly, not callable
+        login_res = LoginRes()
+        login_res.ParseFromString(resp.content)
+        msg = json.loads(json_format.MessageToJson(login_res))
         cached_tokens[region] = {
             'token': f"Bearer {msg.get('token','0')}",
             'region': msg.get('lockRegion','0'),
@@ -153,8 +156,9 @@ async def GetAccountInformation(uid, unk, region, endpoint):
         
         # Try to parse the response
         try:
-            response_data = decode_protobuf(resp.content, Info())
-            return json.loads(json_format.MessageToJson(response_data))
+            info_msg = Info()
+            info_msg.ParseFromString(resp.content)
+            return json.loads(json_format.MessageToJson(info_msg))
         except Exception as e:
             # If parsing fails, return raw response for debugging
             return {"error": f"Failed to parse response: {str(e)}", "raw_response": resp.content.hex()}
