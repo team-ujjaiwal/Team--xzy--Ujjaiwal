@@ -59,7 +59,12 @@ def get_account_credentials(region: str) -> str:
 async def get_access_token(account: str):
     url = "https://ffmconnect.live.gop.garenanow.com/oauth/guest/token/grant"
     payload = account + "&response_type=token&client_type=2&client_secret=2ee44819e9b4598845141067b281621874d0d5d7af9d8f7e00c1e54715b7d1e3&client_id=100067"
-    headers = {'User-Agent': USERAGENT, 'Connection': "Keep-Alive", 'Accept-Encoding': "gzip", 'Content-Type': "application/x-www-form-urlencoded"}
+    headers = {
+        'User-Agent': USERAGENT,
+        'Connection': 'Keep-Alive',
+        'Accept-Encoding': 'gzip',
+        'Content-Type': 'application/x-www-form-urlencoded'
+    }
     async with httpx.AsyncClient() as client:
         resp = await client.post(url, data=payload, headers=headers)
         data = resp.json()
@@ -72,9 +77,16 @@ async def create_jwt(region: str):
     proto_bytes = await json_to_proto(body, LoginReq())
     payload = aes_cbc_encrypt(MAIN_KEY, MAIN_IV, proto_bytes)
     url = "https://loginbp.ggblueshark.com/MajorLogin"
-    headers = {'User-Agent': USERAGENT, 'Connection': "Keep-Alive", 'Accept-Encoding': "gzip",
-               'Content-Type': "application/octet-stream", 'Expect': "100-continue", 'X-Unity-Version': "2018.4.11f1",
-               'X-GA': "v1 1", 'ReleaseVersion': RELEASEVERSION}
+    headers = {
+        'User-Agent': USERAGENT,
+        'Connection': 'Keep-Alive',
+        'Accept-Encoding': 'gzip',
+        'Content-Type': 'application/octet-stream',
+        'Expect': '100-continue',
+        'X-Unity-Version': '2018.4.11f1',
+        'X-GA': 'v1 1',
+        'ReleaseVersion': RELEASEVERSION
+    }
     async with httpx.AsyncClient() as client:
         resp = await client.post(url, data=payload, headers=headers)
         msg = json.loads(json_format.MessageToJson(decode_protobuf(resp.content, LoginRes)))
@@ -102,17 +114,40 @@ async def get_token_info(region: str) -> Tuple[str,str,str]:
     info = cached_tokens[region]
     return info['token'], info['region'], info['server_url']
 
+# Create a simple message class for GetPlayerPersonalShow request
+class GetPlayerPersonalShow:
+    def __init__(self):
+        self.a = 0
+        self.b = 0
+    
+    def SerializeToString(self):
+        # Simple serialization for the request
+        return f"{self.a}:{self.b}".encode()
+
 async def GetAccountInformation(uid, unk, region, endpoint):
     region = region.upper()
     if region not in SUPPORTED_REGIONS:
         raise ValueError(f"Unsupported region: {region}")
-    payload = await json_to_proto(json.dumps({'a': uid, 'b': unk}), GetPlayerPersonalShow())
+    
+    # Create request message
+    request_msg = GetPlayerPersonalShow()
+    request_msg.a = int(uid)
+    request_msg.b = int(unk)
+    
+    payload = request_msg.SerializeToString()
     data_enc = aes_cbc_encrypt(MAIN_KEY, MAIN_IV, payload)
     token, lock, server = await get_token_info(region)
-    headers = {'User-Agent': USERAGENT, 'Connection': "Keep-Alive", 'Accept-Encoding': "gzip",
-               'Content-Type': "application/octet-stream", 'Expect': "100-continue",
-               'Authorization': token, 'X-Unity-Version': "2018.4.11f1", 'X-GA': "v1 1",
-               'ReleaseVersion': RELEASEVERSION}
+    headers = {
+        'User-Agent': USERAGENT,
+        'Connection': 'Keep-Alive',
+        'Accept-Encoding': 'gzip',
+        'Content-Type': 'application/octet-stream',
+        'Expect': '100-continue',
+        'Authorization': token,
+        'X-Unity-Version': '2018.4.11f1',
+        'X-GA': 'v1 1',
+        'ReleaseVersion': RELEASEVERSION
+    }
     async with httpx.AsyncClient() as client:
         resp = await client.post(server+endpoint, data=data_enc, headers=headers)
         return json.loads(json_format.MessageToJson(decode_protobuf(resp.content, AccountPersonalShowInfo)))
@@ -155,7 +190,7 @@ def get_account_info():
 
     except Exception as e:
         # Agar koi error aaye toh yeh catch karega
-        return jsonify({"error": "Invalid UID or Region. Please check and try again."}), 500
+        return jsonify({"error": f"Invalid UID or Region. Error: {str(e)}"}), 500
 
 @app.route('/refresh', methods=['GET','POST'])
 def refresh_tokens_endpoint():
