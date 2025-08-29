@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import asyncio
 import time
 import httpx
@@ -8,7 +9,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from cachetools import TTLCache
 from typing import Tuple
-from CSPlayerPersonalShowInfo_pb2 import AccountPersonalShowInfo  # Correct response type
+from CSPlayerPersonalShowInfo_pb2 import AccountPersonalShowInfo, Info, BasicInfo, Overview, HistoryBPInfo, GuildBasicInfo, LeaderBasicInfo, PetInfo, SocialInfo, DiamondCostRes, CreditScoreInfo, EquippedAch  # All required message types
 from main_pb2 import GetPlayerPersonalShow  # Correct request type
 from FreeFire_pb2 import LoginReq, LoginRes
 from google.protobuf import json_format, message
@@ -144,8 +145,9 @@ async def GetAccountInformation(uid, unk, region, endpoint):
     async with httpx.AsyncClient() as client:
         resp = await client.post(server+endpoint, data=data_enc, headers=headers)
         
-        # Try to parse the response with correct message type
+        # Try to parse the response with correct message types
         try:
+            # First try with AccountPersonalShowInfo
             account_info = AccountPersonalShowInfo()
             account_info.ParseFromString(resp.content)
             
@@ -154,17 +156,16 @@ async def GetAccountInformation(uid, unk, region, endpoint):
             return json.loads(json_data)
             
         except Exception as e:
-            # If parsing fails, try to debug what we received
             try:
-                # Try with Info message type as fallback
+                # Fallback to Info message type
                 info_msg = Info()
                 info_msg.ParseFromString(resp.content)
                 json_data = json_format.MessageToJson(info_msg, preserving_proto_field_name=True)
                 return json.loads(json_data)
-            except:
-                # Return raw response for debugging
+            except Exception as e2:
+                # If both fail, return error with debug info
                 return {
-                    "error": f"Failed to parse response: {str(e)}", 
+                    "error": f"Failed to parse response: {str(e2)}", 
                     "raw_response_length": len(resp.content),
                     "raw_response_hex": resp.content.hex()[:100] + "..." if len(resp.content) > 100 else resp.content.hex()
                 }
@@ -190,7 +191,7 @@ def get_account_info():
     region = request.args.get('region')
     uid = request.args.get('uid')
 
-    # Pehle basic validation
+    # Basic validation
     if not uid:
         return jsonify({"error": "Please provide UID."}), 400
 
@@ -198,15 +199,19 @@ def get_account_info():
         return jsonify({"error": "Please provide REGION."}), 400
 
     try:
-        # API call
+        # API call to get real player data
         return_data = asyncio.run(GetAccountInformation(uid, "7", region, "/GetPlayerPersonalShow"))
 
-        # Agar data mila toh usko beautify karke bhejo
+        # Check if we got an error response
+        if "error" in return_data:
+            return jsonify(return_data), 500
+
+        # Return the actual player data
         formatted_json = json.dumps(return_data, indent=2, ensure_ascii=False)
         return formatted_json, 200, {'Content-Type': 'application/json; charset=utf-8'}
 
     except Exception as e:
-        # Agar koi error aaye toh yeh catch karega
+        # Error handling
         return jsonify({"error": f"Invalid UID or Region. Error: {str(e)}"}), 500
 
 @app.route('/refresh', methods=['GET','POST'])
