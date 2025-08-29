@@ -8,8 +8,8 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from cachetools import TTLCache
 from typing import Tuple
-from CSPlayerPersonalShowInfo_pb2 import Info  # Correct message type for response
-from main_pb2 import GetPlayerPersonalShow  # Correct message type for request
+from CSPlayerPersonalShowInfo_pb2 import AccountPersonalShowInfo  # Correct response type
+from main_pb2 import GetPlayerPersonalShow  # Correct request type
 from FreeFire_pb2 import LoginReq, LoginRes
 from google.protobuf import json_format, message
 from google.protobuf.message import Message
@@ -90,7 +90,6 @@ async def create_jwt(region: str):
     }
     async with httpx.AsyncClient() as client:
         resp = await client.post(url, data=payload, headers=headers)
-        # Fix: Use LoginRes directly, not callable
         login_res = LoginRes()
         login_res.ParseFromString(resp.content)
         msg = json.loads(json_format.MessageToJson(login_res))
@@ -145,14 +144,30 @@ async def GetAccountInformation(uid, unk, region, endpoint):
     async with httpx.AsyncClient() as client:
         resp = await client.post(server+endpoint, data=data_enc, headers=headers)
         
-        # Try to parse the response
+        # Try to parse the response with correct message type
         try:
-            info_msg = Info()
-            info_msg.ParseFromString(resp.content)
-            return json.loads(json_format.MessageToJson(info_msg))
+            account_info = AccountPersonalShowInfo()
+            account_info.ParseFromString(resp.content)
+            
+            # Convert to JSON with proper formatting
+            json_data = json_format.MessageToJson(account_info, preserving_proto_field_name=True)
+            return json.loads(json_data)
+            
         except Exception as e:
-            # If parsing fails, return raw response for debugging
-            return {"error": f"Failed to parse response: {str(e)}", "raw_response": resp.content.hex()}
+            # If parsing fails, try to debug what we received
+            try:
+                # Try with Info message type as fallback
+                info_msg = Info()
+                info_msg.ParseFromString(resp.content)
+                json_data = json_format.MessageToJson(info_msg, preserving_proto_field_name=True)
+                return json.loads(json_data)
+            except:
+                # Return raw response for debugging
+                return {
+                    "error": f"Failed to parse response: {str(e)}", 
+                    "raw_response_length": len(resp.content),
+                    "raw_response_hex": resp.content.hex()[:100] + "..." if len(resp.content) > 100 else resp.content.hex()
+                }
 
 # === Caching Decorator ===
 def cached_endpoint(ttl=300):
