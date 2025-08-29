@@ -8,7 +8,8 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from cachetools import TTLCache
 from typing import Tuple
-from CSPlayerPersonalShowInfo_pb2 import Info  # Correct message type
+from CSPlayerPersonalShowInfo_pb2 import Info  # Correct message type for response
+from main_pb2 import GetPlayerPersonalShow  # Correct message type for request
 from FreeFire_pb2 import LoginReq, LoginRes
 from google.protobuf import json_format, message
 from google.protobuf.message import Message
@@ -117,22 +118,12 @@ async def get_token_info(region: str) -> Tuple[str,str,str]:
     info = cached_tokens[region]
     return info['token'], info['region'], info['server_url']
 
-# Create a simple message class for GetPlayerPersonalShow request
-class GetPlayerPersonalShow:
-    def __init__(self):
-        self.a = 0
-        self.b = 0
-    
-    def SerializeToString(self):
-        # Simple serialization for the request
-        return f"{self.a}:{self.b}".encode()
-
 async def GetAccountInformation(uid, unk, region, endpoint):
     region = region.upper()
     if region not in SUPPORTED_REGIONS:
         raise ValueError(f"Unsupported region: {region}")
     
-    # Create request message
+    # Create proper protobuf request message
     request_msg = GetPlayerPersonalShow()
     request_msg.a = int(uid)
     request_msg.b = int(unk)
