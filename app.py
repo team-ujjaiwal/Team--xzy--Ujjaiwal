@@ -8,7 +8,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from cachetools import TTLCache
 from typing import Tuple
-from CSPlayerPersonalShowInfo_pb2 import AccountPersonalShowInfo, GetPlayerPersonalShow
+from CSPlayerPersonalShowInfo_pb2 import AccountPersonalShowInfo
 from FreeFire_pb2 import LoginReq, LoginRes
 from google.protobuf import json_format, message
 from google.protobuf.message import Message
